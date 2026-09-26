@@ -1,117 +1,174 @@
-# aros-ui — UI автотесты (Python + Playwright)
+# aros-ui — UI автотесты (Java + Playwright + JUnit5)
 
-Автоматизированные UI-тесты для https://staging.aros.uz, цель которых —
-покрывать регрессией ключевые пользовательские сценарии, чтобы баги
-находились до релиза, а не клиентами.
+Автоматизированные UI-тесты для маркетплейса Aros:
+- витрина — https://staging.aros.uz
+- админ-панель — https://staging-admin.aros.uz
 
-## Стек
+Проект написан с расчётом на то, что вы новичок в Java — код нарочно
+подробно закомментирован: не только ЧТО делает каждый класс, но и ПОЧЕМУ он
+устроен именно так. Начните читать с этого README, потом открывайте файлы
+в том порядке, в котором они здесь перечислены — так архитектура сложится
+в голове по кусочкам, а не одной большой кучей.
 
-- Python 3.11+
-- `pytest` + `pytest-playwright`
-- Page Object Model
-- `python-dotenv` для конфигурации окружения
+## Стек и почему именно он
+
+| Что | Выбор | Почему |
+|---|---|---|
+| Язык | Java 21 | Текущая LTS-версия |
+| Сборка | Maven | Стандарт в Java-мире, `pom.xml` — аналог `requirements.txt` |
+| Браузер | [Playwright](https://playwright.io/java/) | Автоожидание элементов "из коробки" — меньше нестабильных тестов, чем на Selenium |
+| Test runner | JUnit 5 | Стандарт де-факто для новых Java-проектов |
+| Отчёты | [Allure](https://allurereport.org/) | Читаемые HTML-отчёты со скриншотами и шагами теста |
+| Паттерн | Page Object Model | Локаторы страниц отделены от самих тестов |
 
 ## Архитектура проекта
 
 ```
 aros-ui/
-├── config/
-│   └── settings.py        # чтение конфигурации из .env (BASE_URL, креды, headless)
-├── pages/                  # Page Object'ы — вся работа с локаторами только здесь
-│   ├── base_page.py
-│   ├── home_page.py        # главная страница, открытие формы входа
-│   └── login_form.py       # форма Sign in: телефон/пароль, переключение режимов
-├── utils/
-│   └── toast.py            # хелпер для react-toastify уведомлений (успех/ошибка)
-├── tests/
-│   ├── conftest.py          # фикстуры: settings, base_url, home_page, креды
-│   └── auth/
-│       └── test_login.py    # тесты авторизации
-├── .env.example             # шаблон переменных окружения (без секретов)
-├── pytest.ini
-├── requirements.txt
-└── .github/workflows/playwright.yml  # заготовка CI
+├── pom.xml                                  # зависимости и сборка (см. подробные комментарии внутри)
+├── .env / .env.example                      # переменные окружения (URL, тестовые креды)
+└── src/test/java/uz/aros/autotests/
+    ├── config/
+    │   └── EnvConfig.java                   # чтение .env / переменных окружения CI
+    ├── playwrightsupport/
+    │   └── PlaywrightManager.java           # жизненный цикл Playwright → Browser → BrowserContext → Page
+    ├── base/
+    │   ├── BaseUiTest.java                  # родитель ВСЕХ тестов: открывает/закрывает браузер
+    │   └── BasePage.java                    # родитель ВСЕХ Page Object'ов
+    ├── extensions/
+    │   └── ScreenshotOnFailureExtension.java # авто-скриншот в Allure при падении теста
+    ├── pages/
+    │   ├── storefront/
+    │   │   ├── HomePage.java                # главная страница витрины
+    │   │   └── components/
+    │   │       ├── SignInForm.java          # модальное окно входа
+    │   │       └── Toast.java               # всплывающие уведомления (react-toastify)
+    │   └── admin/
+    │       ├── AdminLoginPage.java          # логин в админ-панель
+    │       └── AdminDashboardPage.java       # заглушка дашборда (см. TODO в файле)
+    └── tests/
+        ├── storefront/auth/
+        │   └── LoginTest.java               # 7 тестов авторизации на витрине
+        └── admin/
+            └── AdminLoginTest.java          # тесты авторизации в админку (пока пропускаются)
 ```
 
-**Принцип локаторов**: сайт построен на MUI, и большая часть CSS-классов —
-это хэши вида `mui-style-5t6wuj`, которые пересобираются при каждом билде
-фронтенда. Использовать их как селекторы нельзя — тесты будут ломаться при
-любом деплое без изменений в UI. Поэтому везде используются:
-- `get_by_role(...)` по роли и видимому тексту кнопки/заголовка,
-- стабильные HTML-атрибуты: `input[name="password"]`, `input[type="text"]`,
-  `aria-label="toggle password visibility"`,
-- CSS-классы сторонних стабильных библиотек (`Toastify__toast--success`),
-  но не классы, сгенерированные MUI.
+### Почему слои разделены именно так
+
+**`config` → `playwrightsupport` → `base` → `pages` → `tests`** — каждый
+следующий слой опирается на предыдущий и ничего не знает о том, что выше:
+
+- **Тест** (`LoginTest`) описывает только бизнес-сценарий человеческим
+  языком: "открыть форму, ввести данные, проверить результат". Ни одного
+  CSS-селектора в тесте нет.
+- **Page Object** (`SignInForm`, `HomePage`) знает, ГДЕ на странице что
+  находится, и предоставляет тесту методы уровня пользователя
+  (`signInWithPassword(...)`). Если фронтенд поменяет вёрстку — чинить
+  нужно только здесь.
+- **`base`** — это переиспользуемый "клей": `BaseUiTest` даёт каждому
+  тесту готовую страницу браузера и убирает её после, `BasePage` — общий
+  родитель для Page Object'ов.
+- **`playwrightsupport`** прячет детали именно Playwright API (Browser,
+  BrowserContext, Page) — если завтра понадобится что-то тонко
+  настроить (прокси, запись видео и т.п.), тест и Page Object'ы это не
+  затронет.
+- **`config`** — единственное место, где программа знает про `.env` и
+  переменные окружения.
 
 ## Установка
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-playwright install --with-deps chromium
-
-cp .env.example .env
-# заполнить BASE_URL / TEST_USER_PHONE / TEST_USER_PASSWORD в .env
-```
-
-`.env` в `.gitignore` — реальные учётные данные никогда не попадают в git.
+1. Установите JDK 21+ и Maven (проверить: `java -version`, `mvn -version`).
+2. Скопируйте `.env.example` в `.env` и заполните значения:
+   ```bash
+   cp .env.example .env
+   ```
+3. Установите браузер Chromium для Playwright (нужно один раз после
+   клонирования репозитория — сам Playwright скачивается как обычная
+   Java-библиотека через Maven, а вот РЕАЛЬНЫЙ браузер он держит отдельно
+   и качает вот этой командой):
+   ```bash
+   mvn exec:java@install-browsers
+   ```
 
 ## Запуск тестов
 
 ```bash
-pytest                              # все тесты
-pytest tests/auth                   # только авторизация
-pytest -m smoke                     # быстрый набор для каждого коммита
-pytest -m regression                # полный набор перед релизом
-pytest --headed --slowmo 300        # смотреть браузер вживую при отладке
+mvn test                          # все тесты
+mvn test -Dtest=LoginTest         # только тесты логина на витрине
+mvn test -Dgroups=smoke           # только тесты с тегом @Tag("smoke")
+mvn test -Dheadless=false         # смотреть браузер вживую при отладке
 ```
 
-## Тесты авторизации (`tests/auth/test_login.py`)
+После прогона сырые данные для отчёта лежат в `allure-results/`. Собрать
+и открыть сам HTML-отчёт (нужен [Allure CLI](https://allurereport.org/docs/install/),
+например `brew install allure`):
+```bash
+allure serve allure-results
+```
 
-Реализован вход по паролю (сценарий: кнопка «Sign in» → «Sign in with
-password» → телефон + пароль → «Sign in»):
+## Тесты авторизации на витрине (`LoginTest`)
 
 | Тест | Что проверяет |
 |---|---|
-| `test_successful_login_with_valid_credentials` | happy path: валидные данные → toast «Successful» |
-| `test_login_fails_with_wrong_password` | неверный пароль → нет toast успеха, форма остаётся видна |
-| `test_login_fails_with_invalid_phone_format` | параметризованный: короткий/длинный/нечисловой номер |
-| `test_login_fails_with_empty_password` | пустой пароль не даёт войти |
-| `test_login_fails_with_empty_phone_number` | пустой телефон не даёт войти |
-| `test_password_is_masked_by_default_and_toggle_reveals_it` | UI: маскирование пароля и переключатель видимости |
-| `test_switching_between_phone_and_password_login_modes` | UI: переключение «по паролю» / «по телефону» |
+| `successfulLoginWithValidCredentials` | happy path: валидные телефон+пароль → toast «успех» и шапка сайта показывает, что пользователь вошёл |
+| `loginFailsWithWrongPassword` | неверный пароль → входа не происходит |
+| `loginFailsWithInvalidPhoneFormat` (×4, параметризованный) | короткий/длинный/нечисловой номер |
+| `loginFailsWithEmptyPassword` / `loginFailsWithEmptyPhoneNumber` | обязательные поля не дают войти пустыми |
+| `passwordIsMaskedByDefaultAndToggleRevealsIt` | UI: маскирование пароля и переключатель-"глазик" |
+| `switchingBetweenPhoneAndPasswordLoginModes` | UI: переключение режимов входа |
 
-Пока намеренно не покрыто (не входило в первый этап): восстановление
-пароля, регистрация (Sign up), вход по одноразовому коду через телефон.
-Добавим следующим этапом — `LoginForm` уже содержит локаторы
-`forgot_password_button` и `sign_up_button` для этого.
+Все 10 тестов реально прогонялись против `https://staging.aros.uz` при
+разработке — при этом нашлось и было исправлено два настоящих бага
+автоматизации (см. комментарии в `SignInForm.fillPhone(...)` — там
+подробно описано, что именно ломалось и почему).
 
-## Важное ограничение текущей версии
+## Тесты админ-панели (`AdminLoginTest`)
 
-Тесты написаны по реальной DOM-разметке, которую вы прислали (кнопка
-входа → форма с телефоном → переключение на пароль), и логика Page
-Object'ов проверена локально на HTML-заглушке, воспроизводящей эту
-структуру — переключение режимов, маскирование пароля, toast успеха/ошибки
-отрабатывают корректно.
+Учётных данных администратора пока нет, поэтому оба теста при запуске
+аккуратно **пропускаются** (жёлтый статус, не красный) с понятным
+объяснением в отчёте. Как только появятся тестовые креды — впишите их в
+`.env`:
+```
+ADMIN_USERNAME=...
+ADMIN_PASSWORD=...
+```
+и тесты начнут реально выполняться без единой правки кода. Также стоит
+будет уточнить локаторы в `AdminDashboardPage` — сейчас там временная,
+максимально общая проверка (см. комментарий в файле).
 
-Но **в этой рабочей среде нет сетевого доступа к `staging.aros.uz`**
-(доступ заблокирован политикой организации на уровне egress-прокси — ни
-`curl`, ни headless-браузер отсюда до сайта не достучатся), поэтому тесты
-ни разу не были запущены против настоящего staging. Перед тем как считать
-их готовыми, нужно прогнать `pytest tests/auth` из окружения, где сайт
-доступен (ваша машина или CI), и поправить при необходимости:
+## Как добавить новый тест (шпаргалка для новичка)
 
-- точный текст/класс toast с ошибкой (сейчас `test_login_fails_with_*`
-  проверяют только *отсутствие* toast об успехе — этого достаточно для
-  надёжного теста, но если у ошибки есть свой `Toastify__toast--error`,
-  стоит проверять и его через `Toast.expect_error()`, который уже готов);
-- поведение поля телефона при полной очистке — если это маска ввода,
-  она может не давать очистить `+998` полностью, тогда кейсы с пустым
-  телефоном нужно будет адаптировать под реальное поведение маски.
+1. Если тест про новую страницу — создайте для неё Page Object в
+   `pages/...`, унаследовав от `BasePage` (см. `HomePage.java` как пример).
+2. Локаторы ищите через `page.getByRole(...)` / `getByPlaceholder(...)` и
+   похожие — НЕ через сгенерированные CSS-классы (обычно вида
+   `mui-xxxxx` или `css-xxxxx` — они меняются при каждой пересборке
+   фронтенда).
+3. Тестовый класс кладите в `tests/...`, наследуя от `BaseUiTest` — поле
+   `page` (открытая вкладка браузера) будет готово к использованию в
+   каждом `@Test`-методе.
+4. Сам тест должен читаться как рассказ: `homePage.open()`,
+   `form.signInWithPassword(...)`, `homePage.assertUserIsLoggedIn()` — а
+   не как список кликов по селекторам.
+
+## Известные ограничения / что дальше
+
+- Восстановление пароля, регистрация и вход по одноразовому коду через
+  телефон — пока не покрыты. `SignInForm` уже содержит локаторы
+  `forgotPasswordButton()` / `signUpButton()` для этого следующего шага.
+- Точный текст toast об ошибке (`Toast.expectError()`) есть в коде, но ни
+  разу не проверялся против конкретной формулировки сайта — используйте с
+  осторожностью, пока не сверите текст вручную.
+- В консоли при запуске тестов выводится длинный `RuntimeException` от
+  AspectJ ("Unsupported class file major version..."). Это шумный, но
+  БЕЗОБИДНЫЙ предупреждение о несовместимости конкретно вашей версии JDK
+  (27, очень свежая) с загрузчиком аспектов Allure — на сами тесты и на
+  корректность отчёта (шаги/скриншоты) он не влияет, это было явно
+  проверено. Если раздражает — запустите тесты на JDK 21.
 
 ## CI
 
-`.github/workflows/playwright.yml` — заготовка: запускает `tests/auth` на
-`workflow_dispatch`, PR и push в `main`. Чтобы она заработала, добавьте в
-Settings → Secrets репозитория: `BASE_URL`, `TEST_USER_PHONE`,
-`TEST_USER_PASSWORD`.
+`.github/workflows/ui-tests.yml` — прогоняет `mvn test` на каждый PR и push
+в `main`, публикует Allure-отчёт как артефакт сборки. Чтобы тесты на
+витрину заработали в CI, добавьте в Settings → Secrets репозитория:
+`BASE_URL`, `TEST_USER_PHONE`, `TEST_USER_PASSWORD`, `TEST_USER_WRONG_PASSWORD`.

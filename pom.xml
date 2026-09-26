@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Это главный конфигурационный файл Maven — аналог requirements.txt + pytest.ini
+    из прошлой Python-версии, только для Java.
+
+    Maven отвечает за две вещи:
+      1) какие библиотеки (зависимости, <dependencies>) скачать и подключить;
+      2) как собирать и запускать проект (плагины, <build><plugins>).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- groupId/artifactId — это "имя и фамилия" проекта в мире Maven.
+         Здесь не используется нигде, кроме как для идентификации самого проекта. -->
+    <groupId>uz.aros</groupId>
+    <artifactId>aros-ui-tests</artifactId>
+    <version>1.0.0</version>
+    <!-- packaging=jar по умолчанию, но у нас это "проект без main-кода",
+         в нём есть только тесты — pom всё равно должен быть валидным jar-проектом. -->
+    <packaging>jar</packaging>
+
+    <properties>
+        <!-- Кодировка исходников и отчётов, чтобы кириллица в комментариях/логах
+             не превращалась в "кракозябры" на CI (Linux по умолчанию использует UTF-8,
+             но явно указать надёжнее, чем полагаться на окружение). -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Версия языка Java, под которую компилируется код.
+             21 — текущая LTS-версия, поддерживается даже если на машине
+             установлена более новая JDK (флаг компилятора "release" гарантирует совместимость). -->
+        <maven.compiler.release>21</maven.compiler.release>
+
+        <!-- Версии зависимостей вынесены в properties, чтобы обновлять их
+             в одном месте, а не искать по всему файлу. -->
+        <playwright.version>1.49.0</playwright.version>
+        <junit.version>5.11.4</junit.version>
+        <allure.version>2.29.0</allure.version>
+        <dotenv.version>3.0.2</dotenv.version>
+        <slf4j.version>2.0.16</slf4j.version>
+        <logback.version>1.5.12</logback.version>
+        <aspectj.version>1.9.22.1</aspectj.version>
+
+        <!-- allow.snapshot нужен surefire-плагину, чтобы находить javaagent для Allure (см. ниже). -->
+        <argLine/>
+    </properties>
+
+    <!--
+        Bill of Materials (BOM) для JUnit5: он сам не подключает библиотеки,
+        а лишь "фиксирует" совместимые версии всех junit-jupiter-* артефактов,
+        чтобы не подбирать их вручную и не словить конфликт версий.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- ============ Управление браузером ============ -->
+        <!-- Основная библиотека: запускает Chromium/Firefox/WebKit и управляет ими. -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+        </dependency>
+
+        <!-- ============ Test runner ============ -->
+        <!-- junit-jupiter — это "3 в одном": API для написания тестов (@Test и т.д.),
+             движок, который их находит и запускает, и модуль с параметризованными тестами. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ============ Отчётность ============ -->
+        <!-- allure-junit5 — интеграция Allure Report с JUnit5: слушает события тестов
+             (начало/конец/ошибка) и пишет их в allure-results/ в виде json-файлов,
+             из которых потом генерируется красивый HTML-отчёт. -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-junit5</artifactId>
+            <version>${allure.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ============ Конфигурация ============ -->
+        <!-- dotenv-java — читает файл .env и отдаёт значения по ключу,
+             аналог python-dotenv из прошлой версии проекта. -->
+        <dependency>
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
+            <version>${dotenv.version}</version>
+        </dependency>
+
+        <!-- ============ Логирование ============ -->
+        <!-- slf4j — это только "интерфейс" для логирования (фасад). -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <!-- logback — конкретная реализация, которая и пишет логи в консоль/файл
+             по правилам из src/test/resources/logback.xml. -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                maven-surefire-plugin — плагин, который непосредственно запускает тесты
+                командой `mvn test`. Настраиваем на нём:
+                  - javaagent для Allure (нужен, чтобы @Step-аннотации на страницах
+                    попадали в отчёт как шаги, а не терялись);
+                  - системные свойства, которые тесты могут прочитать через System.getProperty.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <argLine>
+                        -javaagent:"${settings.localRepository}"/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar
+                    </argLine>
+                    <!-- Пробрасываем системные свойства из командной строки Maven
+                         (например: mvn test -Dheadless=false) внутрь JVM с тестами. -->
+                    <systemPropertyVariables>
+                        <headless>${headless}</headless>
+                        <browser>${browser}</browser>
+                    </systemPropertyVariables>
+                </configuration>
+                <dependencies>
+                    <!-- aspectjweaver — техническая зависимость самого Allure для @Step. -->
+                    <dependency>
+                        <groupId>org.aspectj</groupId>
+                        <artifactId>aspectjweaver</artifactId>
+                        <version>${aspectj.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <!--
+                exec-maven-plugin сам по себе не нужен для запуска тестов —
+                он используется только один раз, вручную, чтобы установить
+                браузеры Playwright (`mvn exec:java@install-browsers`).
+                Это Java-аналог команды "playwright install with-deps chromium"
+                из Python-версии: сама библиотека Playwright — это просто
+                Java-обёртка, а настоящие браузеры (Chromium/Firefox/WebKit)
+                она скачивает отдельно при первом запуске этой команды.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>install-browsers</id>
+                        <configuration>
+                            <mainClass>com.microsoft.playwright.CLI</mainClass>
+                            <arguments>
+                                <argument>install</argument>
+                                <argument>--with-deps</argument>
+                                <argument>chromium</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

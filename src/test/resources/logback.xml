@@ -1,0 +1,35 @@
+<!--
+    Конфигурация логирования (logback). Настраивает ТОЛЬКО формат и место
+    вывода логов — сами сообщения пишутся в коде через SLF4J-логгер, см.
+    ScreenshotOnFailureExtension как пример.
+
+    Зачем это новичку: без этого файла logback по умолчанию не выводит
+    цвет/понятный формат и не пишет в файл — просто мешанина в консоли.
+-->
+<configuration>
+
+    <!-- Вывод в консоль: время, уровень (INFO/WARN/ERROR), имя класса и само сообщение. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Дополнительно пишем тот же лог в файл target/test-logs/tests.log,
+         чтобы можно было прикрепить полный лог прогона к Allure-отчёту
+         или просто открыть его после падения CI. -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>target/test-logs/tests.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- root — уровень логирования по умолчанию для всего проекта.
+         INFO достаточно для тестов; DEBUG сильно "зашумит" вывод библиотеками. -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

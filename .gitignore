@@ -1,11 +1,16 @@
+# Секреты и локальная конфигурация
 .env
-__pycache__/
-*.pyc
-.pytest_cache/
-test-results/
-playwright-report/
-report.html
+
+# Maven
+target/
+
+# Allure — сырые результаты и сгенерированный HTML-отчёт (генерируются заново на каждом прогоне)
+allure-results/
+allure-report/
+
+# IDE
 .vscode/
 .idea/
-venv/
-.venv/
+
+# macOS
+.DS_Store
