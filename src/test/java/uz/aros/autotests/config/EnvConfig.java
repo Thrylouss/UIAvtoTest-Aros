@@ -78,9 +78,9 @@ public final class EnvConfig {
         return value;
     }
 
-    /** Базовый URL тестируемого окружения, например https://staging.aros.uz/en. */
+    /** Базовый URL тестируемого окружения, например https://staging.aros.uz/ru. */
     public static String baseUrl() {
-        return readOrDefault("BASE_URL", "https://staging.aros.uz/en");
+        return readOrDefault("BASE_URL", "https://staging.aros.uz/ru");
     }
 
     /** Телефон валидного тестового пользователя для позитивных сценариев логина. */
@@ -128,5 +128,67 @@ public final class EnvConfig {
             return Boolean.parseBoolean(systemProperty);
         }
         return Boolean.parseBoolean(readOrDefault("HEADLESS", "true"));
+    }
+
+    // ------------------------------------------------------------------ Telegram и режим запуска
+
+    /** Любая необязательная настройка: переменная окружения / .env / системное свойство (-Dkey=value). */
+    public static String optional(String key) {
+        String sys = System.getProperty(key);
+        if (sys != null && !sys.isBlank()) {
+            return sys;
+        }
+        String value = read(key);
+        return value == null ? "" : value.trim();
+    }
+
+    /** Токен бота от @BotFather. Пусто — Telegram-отчёты выключены (всё остальное работает). */
+    public static String telegramToken() {
+        return optional("TELEGRAM_BOT_TOKEN");
+    }
+
+    /** Чаты, в которые шлём отчёты и от которых бот принимает команды (через запятую). */
+    public static java.util.List<String> telegramChatIds() {
+        String raw = optional("TELEGRAM_CHAT_ID");
+        if (raw.isBlank()) {
+            return java.util.List.of();
+        }
+        return java.util.Arrays.stream(raw.split("[,;\\s]+")).filter(x -> !x.isBlank()).toList();
+    }
+
+    public static boolean telegramEnabled() {
+        return !telegramToken().isBlank() && !telegramChatIds().isEmpty()
+                && !"true".equalsIgnoreCase(optional("QA_NO_TELEGRAM"));
+    }
+
+    /** Подпись запуска, которую бот передаёт в отчёт («/smoke», «/id AUTH-001»…). */
+    public static String runLabel() {
+        return optional("QA_RUN_LABEL");
+    }
+
+    /** Кто запустил прогон (бот подставляет имя пользователя Telegram). */
+    public static String triggeredBy() {
+        return optional("QA_TRIGGERED_BY");
+    }
+
+    /** Язык интерфейса, на котором идёт прогон: ru / uz / en. По умолчанию берётся из BASE_URL (…/ru). */
+    public static String locale() {
+        String explicit = optional("LOCALE");
+        if (!explicit.isBlank()) {
+            return explicit.toLowerCase();
+        }
+        String path = java.net.URI.create(baseUrl()).getPath();
+        for (String l : new String[]{"ru", "uz", "en"}) {
+            if (path != null && (path.equals("/" + l) || path.startsWith("/" + l + "/"))) {
+                return l;
+            }
+        }
+        return "ru";
+    }
+
+    /** Корень сайта без языка: https://staging.aros.uz */
+    public static String siteRoot() {
+        java.net.URI u = java.net.URI.create(baseUrl());
+        return u.getScheme() + "://" + u.getAuthority();
     }
 }

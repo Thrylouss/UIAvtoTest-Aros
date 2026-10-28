@@ -7,6 +7,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import uz.aros.autotests.annotations.P1;
+import uz.aros.autotests.annotations.P2;
+import uz.aros.autotests.annotations.P3;
+import uz.aros.autotests.annotations.Smoke;
 import uz.aros.autotests.base.BaseUiTest;
 import uz.aros.autotests.config.EnvConfig;
 import uz.aros.autotests.pages.storefront.HomePage;
@@ -36,8 +40,10 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 public class LoginTest extends BaseUiTest {
 
     @Test
-    @Tag("smoke")
-    @DisplayName("Успешный вход с валидными телефоном и паролем")
+    @Tag("AUTH-001")
+    @P1
+    @Smoke
+    @DisplayName("AUTH-001 · Успешный вход с валидными телефоном и паролем")
     void successfulLoginWithValidCredentials() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -52,8 +58,9 @@ public class LoginTest extends BaseUiTest {
     }
 
     @Test
-    @Tag("regression")
-    @DisplayName("Вход не проходит с неверным паролем")
+    @Tag("AUTH-002")
+    @P1
+    @DisplayName("AUTH-002 · Вход не проходит с неверным паролем")
     void loginFailsWithWrongPassword() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -70,15 +77,16 @@ public class LoginTest extends BaseUiTest {
      * Это избавляет от копирования одного и того же теста четыре раза
      * с разными входными данными.
      */
-    @ParameterizedTest(name = "Неверный формат телефона: \"{0}\"")
-    @Tag("regression")
+    @ParameterizedTest(name = "AUTH-003 · Неверный формат телефона: \"{0}\"")
+    @Tag("AUTH-003")
+    @P2
     @ValueSource(strings = {
             "+998",                 // только код страны, без номера
             "+998123",              // слишком короткий номер
             "+998999999999999999",  // слишком длинный номер
             "abc998987882"          // буквы вместо цифр
     })
-    @DisplayName("Вход не проходит с некорректным форматом телефона")
+    @DisplayName("AUTH-003 · Вход не проходит с некорректным форматом телефона")
     void loginFailsWithInvalidPhoneFormat(String invalidPhone) {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -89,8 +97,9 @@ public class LoginTest extends BaseUiTest {
     }
 
     @Test
-    @Tag("regression")
-    @DisplayName("Вход не проходит с пустым паролем")
+    @Tag("AUTH-004")
+    @P2
+    @DisplayName("AUTH-004 · Вход не проходит с пустым паролем")
     void loginFailsWithEmptyPassword() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -103,8 +112,9 @@ public class LoginTest extends BaseUiTest {
     }
 
     @Test
-    @Tag("regression")
-    @DisplayName("Вход не проходит с пустым номером телефона")
+    @Tag("AUTH-005")
+    @P2
+    @DisplayName("AUTH-005 · Вход не проходит с пустым номером телефона")
     void loginFailsWithEmptyPhoneNumber() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -118,8 +128,9 @@ public class LoginTest extends BaseUiTest {
     }
 
     @Test
-    @Tag("smoke")
-    @DisplayName("Пароль скрыт по умолчанию, переключатель показывает/скрывает его")
+    @Tag("AUTH-006")
+    @P3
+    @DisplayName("AUTH-006 · Пароль скрыт по умолчанию, переключатель показывает/скрывает его")
     void passwordIsMaskedByDefaultAndToggleRevealsIt() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();
@@ -135,8 +146,9 @@ public class LoginTest extends BaseUiTest {
     }
 
     @Test
-    @Tag("smoke")
-    @DisplayName("Переключение между режимами входа: по телефону и по паролю")
+    @Tag("AUTH-007")
+    @P2
+    @DisplayName("AUTH-007 · Переключение между режимами входа: по телефону и по паролю")
     void switchingBetweenPhoneAndPasswordLoginModes() {
         HomePage homePage = new HomePage(page).open();
         SignInForm form = homePage.openSignInForm();

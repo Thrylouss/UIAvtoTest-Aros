@@ -6,6 +6,7 @@ import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import io.qameta.allure.Step;
 import uz.aros.autotests.base.BasePage;
+import uz.aros.autotests.i18n.Text;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -57,10 +58,10 @@ public class SignInForm extends BasePage {
 
         this.root = page.locator("form")
                 .filter(new Locator.FilterOptions().setHas(
-                        page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Sign in"))))
+                        page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName(Text.SIGN_IN.get()))))
                 .first();
 
-        this.heading = root.getByRole(AriaRole.HEADING, new Locator.GetByRoleOptions().setName("Sign in"));
+        this.heading = root.getByRole(AriaRole.HEADING, new Locator.GetByRoleOptions().setName(Text.SIGN_IN.get()));
         this.phoneInput = root.locator("input[type=\"text\"]").first();
         // ВАЖНО: локатор именно по атрибуту name, а НЕ type="password".
         // Кнопка-"глазик" переключает атрибут type этого же поля между
@@ -72,14 +73,14 @@ public class SignInForm extends BasePage {
         this.passwordVisibilityToggle = root.getByRole(AriaRole.BUTTON,
                 new Locator.GetByRoleOptions().setName("toggle password visibility"));
         this.switchToPasswordButton = root.getByRole(AriaRole.BUTTON,
-                new Locator.GetByRoleOptions().setName("Sign in with password"));
+                new Locator.GetByRoleOptions().setName(Text.SIGN_IN_WITH_PASSWORD.get()));
         this.switchToPhoneButton = root.getByRole(AriaRole.BUTTON,
-                new Locator.GetByRoleOptions().setName("Entry by phone number"));
+                new Locator.GetByRoleOptions().setName(Text.ENTRY_BY_PHONE.get()));
         this.forgotPasswordButton = root.getByRole(AriaRole.BUTTON,
-                new Locator.GetByRoleOptions().setName("Forgot password?"));
-        this.signUpButton = root.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Sign up"));
+                new Locator.GetByRoleOptions().setName(Text.FORGOT_PASSWORD.get()));
+        this.signUpButton = root.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName(Text.SIGN_UP.get()));
         this.submitButton = root.getByRole(AriaRole.BUTTON,
-                new Locator.GetByRoleOptions().setName("Sign in").setExact(true));
+                new Locator.GetByRoleOptions().setName(Text.SIGN_IN.get()).setExact(true));
     }
 
     /** Дожидается, пока модальное окно реально отрисуется — вызывать сразу после открытия формы. */

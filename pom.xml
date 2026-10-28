@@ -37,6 +37,7 @@
         <junit.version>5.11.4</junit.version>
         <allure.version>2.29.0</allure.version>
         <dotenv.version>3.0.2</dotenv.version>
+        <gson.version>2.11.0</gson.version>
         <slf4j.version>2.0.16</slf4j.version>
         <logback.version>1.5.12</logback.version>
         <aspectj.version>1.9.22.1</aspectj.version>
@@ -98,6 +99,15 @@
             <groupId>io.github.cdimascio</groupId>
             <artifactId>dotenv-java</artifactId>
             <version>${dotenv.version}</version>
+        </dependency>
+
+        <!-- ============ Telegram ============ -->
+        <!-- gson — разбор/сборка JSON для Telegram Bot API (ответы getUpdates, тела sendMessage).
+             Сам Telegram-клиент написан на стандартном java.net.http, лишних SDK нет. -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
         </dependency>
 
         <!-- ============ Логирование ============ -->
@@ -165,6 +175,24 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
                 <executions>
+                    <!-- Telegram-бот: слушает команды (/smoke, /p1, /id ...) и запускает mvn test.
+                         Запуск:  mvn test-compile exec:java@telegram-bot -->
+                    <execution>
+                        <id>telegram-bot</id>
+                        <configuration>
+                            <mainClass>uz.aros.autotests.telegram.QaBot</mainClass>
+                            <classpathScope>test</classpathScope>
+                        </configuration>
+                    </execution>
+                    <!-- Зонд страниц: логинится, открывает URL и печатает дерево элементов в консоль/файл.
+                         Нужен, чтобы быстро находить локаторы.  Запуск:  см. README -->
+                    <execution>
+                        <id>probe</id>
+                        <configuration>
+                            <mainClass>uz.aros.autotests.tools.PageProbe</mainClass>
+                            <classpathScope>test</classpathScope>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>install-browsers</id>
                         <configuration>

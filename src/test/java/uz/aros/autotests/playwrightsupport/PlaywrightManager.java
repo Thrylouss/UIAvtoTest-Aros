@@ -6,6 +6,8 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import uz.aros.autotests.config.EnvConfig;
+import uz.aros.autotests.reporting.DiagnosticsRegistry;
+import uz.aros.autotests.reporting.TestDiagnostics;
 
 /**
  * Отвечает за жизненный цикл объектов Playwright: {@link Playwright} →
@@ -63,13 +65,32 @@ public final class PlaywrightManager {
      * Вызывается перед каждым тестовым методом (@BeforeEach).
      */
     public static Page newPage() {
+        return newPage(null, false);
+    }
+
+    /**
+     * Создаёт чистый контекст и страницу.
+     *
+     * @param storageState путь к файлу с сохранённой сессией (cookies + localStorage) — так тест стартует
+     *                     УЖЕ залогиненным, без повторного входа через форму; {@code null} — гость.
+     * @param mobile       {@code true} — эмулировать телефон (узкий экран, touch, мобильный User-Agent):
+     *                     сайт переключается на мобильную вёрстку.
+     */
+    public static Page newPage(java.nio.file.Path storageState, boolean mobile) {
         Browser.NewContextOptions contextOptions = new Browser.NewContextOptions()
-                .setViewportSize(1440, 900)
                 // Некоторые элементы сайта зависят от локали браузера
                 // (например, форматирование чисел/дат) — фиксируем ru-RU,
                 // чтобы поведение было предсказуемым независимо от машины,
                 // на которой запускаются тесты.
                 .setLocale("ru-RU");
+        if (mobile) {
+            contextOptions.setViewportSize(390, 844).setIsMobile(true).setHasTouch(true);
+        } else {
+            contextOptions.setViewportSize(1440, 900);
+        }
+        if (storageState != null) {
+            contextOptions.setStorageStatePath(storageState);
+        }
 
         BrowserContext context = BROWSER.get().newContext(contextOptions);
         // Таймаут по умолчанию для всех операций ожидания элементов в этом
@@ -79,10 +100,19 @@ public final class PlaywrightManager {
 
         Page page = context.newPage();
         PAGE.set(page);
+        // Подписываем страницу на сбор сетевых запросов/ошибок консоли для отчётов
+        TestDiagnostics diagnostics = DiagnosticsRegistry.current();
+        if (diagnostics != null) {
+            diagnostics.attach(page);
+        }
         return page;
     }
 
-    /** Текущая вкладка для этого потока — используется в Page Object'ах и в тестах. */
+    /** Нужен для {@link AuthSession}: отдельный контекст для разового входа, чтобы сохранить сессию в файл. */
+    public static Browser browser() {
+        return BROWSER.get();
+    }
+
     public static Page currentPage() {
         return PAGE.get();
     }

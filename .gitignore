@@ -14,3 +14,6 @@ allure-report/
 
 # macOS
 .DS_Store
+
+# Python-окружение для tools/sync_testcases.py
+.venv/

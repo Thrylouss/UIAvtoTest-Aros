@@ -6,7 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
-import uz.aros.autotests.extensions.ScreenshotOnFailureExtension;
+import uz.aros.autotests.extensions.DiagnosticsExtension;
 import uz.aros.autotests.playwrightsupport.PlaywrightManager;
 
 /**
@@ -32,10 +32,10 @@ import uz.aros.autotests.playwrightsupport.PlaywrightManager;
  * Так браузер запускается только один раз на класс (это дорогая операция),
  * а каждый тест получает чистый, изолированный контекст (дешёвая операция).
  *
- * <p>{@code @ExtendWith(ScreenshotOnFailureExtension.class)} подключает
- * автоматический скриншот в Allure-отчёт при падении любого теста-наследника.
+ * <p>{@code @ExtendWith(DiagnosticsExtension.class)} подключает
+ * сбор диагностики (скриншот, сетевые запросы, ошибки консоли) при падении любого теста-наследника.
  */
-@ExtendWith(ScreenshotOnFailureExtension.class)
+@ExtendWith(DiagnosticsExtension.class)
 public abstract class BaseUiTest {
 
     /**
@@ -43,7 +43,7 @@ public abstract class BaseUiTest {
      * и используют это поле напрямую, как обычное унаследованное поле
      * (просто пишут {@code page.navigate(...)}).
      *
-     * <p>А вот {@link ScreenshotOnFailureExtension} наследником не является
+     * <p>А вот {@link DiagnosticsExtension} наследником не является
      * (это отдельный, несвязанный класс в соседнем пакете), поэтому для него
      * напрямую поле недоступно — правила Java запрещают доступ к protected
      * через ссылку типа "суперкласс" из чужого класса. Для него ниже есть
@@ -51,7 +51,7 @@ public abstract class BaseUiTest {
      */
     protected Page page;
 
-    /** Публичный доступ к текущей странице — нужен внешним классам вроде {@link ScreenshotOnFailureExtension}. */
+    /** Публичный доступ к текущей странице — нужен внешним классам вроде {@link DiagnosticsExtension}. */
     public Page getPage() {
         return page;
     }
@@ -63,7 +63,15 @@ public abstract class BaseUiTest {
 
     @BeforeEach
     void openNewPage() {
-        page = PlaywrightManager.newPage();
+        page = createPage();
+    }
+
+    /**
+     * Как именно создать страницу для теста. По умолчанию — «гость» на десктопе; наследники переопределяют
+     * этот метод: {@link AuthenticatedUiTest} (залогиненный), {@link MobileUiTest} (телефон) и т.д.
+     */
+    protected Page createPage() {
+        return PlaywrightManager.newPage();
     }
 
     @AfterEach
