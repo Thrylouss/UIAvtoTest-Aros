@@ -17,3 +17,4 @@ allure-report/
 
 # Python-окружение для tools/sync_testcases.py
 .venv/
+docs/test-cases/backup/
